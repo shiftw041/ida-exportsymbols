@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, os
-from elf import *
+from .elf import *
 # sys.path[0:0] = ['.', '..']
 
 

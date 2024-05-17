@@ -2,18 +2,23 @@
 # -*- coding: utf-8 -*-
 
 #  Export symbols
-#  2020 
+#  2024
 #
 #  Volodymyr Sydorenko <vvs [at] coders.in.ua>
 #  www: coders.in.ua
 #  git: github.com/BlackVS 
 #       gitlab.com/BlackVS
+#  
+#  Frnk Psycho <frnkpsycho@gmail.com>
+#  www: frnks.top
+#  git: github.com/frnkpsycho
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software  Foundation, either  version 3 of  the License, or
 #  (at your option) any later version.
 
+USER_SEGMENTS = ['.text', '.data', '.bss', '.rodata']
 
 import os,sys
 
@@ -25,12 +30,14 @@ DEBUG = False
 PLUG_NAME    = "Export symbols to file"
 
 sys.path.append('..\\python')
-sys.path.append('..\\python\\lib\\python2.7\\lib-dynload\\ida_64')
+sys.path.append('..\\python\\3\\ida_64')
 
+import traceback
 import idc
 import idaapi
 import idautils
-
+import ida_nalt
+import ida_bytes
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
@@ -54,8 +61,6 @@ def logger(arg):
     if LOG_ENABLE:
         print(arg)
 
-
-
 ###################################################################################################
 
 def show_proc_info():
@@ -73,7 +78,7 @@ def show_proc_info():
         is_be = info.mf
     endian = "big" if is_be else "little"
 
-    print("Processor: {}, {}-bit, {} endian".format(info.procName, bits, endian))
+    print("Processor: {}, {}-bit, {} endian".format(info.procname, bits, endian))
 
 
 ###################################################################################################
@@ -380,7 +385,7 @@ class ELF:
         if not symtab or not strtab:
             return False
 
-        log("Stripping binary...")
+        logger("Stripping binary...")
 
         if symtab.sh_offset < end_shdr:
             size2dec += symtab.sh_size
@@ -430,7 +435,7 @@ class ELF:
         elif self.ElfHeader.e_ident[ELFFlags.EI_CLASS] == ELFFlags.ELFCLASS64: 
             return 64
         else:
-            log("[Error] ELF.getArchMode() - Bad Arch size")
+            logger("[Error] ELF.getArchMode() - Bad Arch size")
             return None
 
     """ Parse ELF header """
@@ -441,11 +446,11 @@ class ELF:
         ei_data  = unpack("<B", e_ident[ELFFlags.EI_DATA:ELFFlags.EI_DATA+1])[0]
 
         if ei_class != ELFFlags.ELFCLASS32 and ei_class != ELFFlags.ELFCLASS64:
-            log("[Error] ELF.__setHeaderElf() - Bad Arch size")
+            logger("[Error] ELF.__setHeaderElf() - Bad Arch size")
             return None
 
         if ei_data != ELFFlags.ELFDATA2LSB and ei_data != ELFFlags.ELFDATA2MSB:
-            log("[Error] ELF.__setHeaderElf() - Bad architecture endian")
+            logger("[Error] ELF.__setHeaderElf() - Bad architecture endian")
             return None
 
         if ei_class == ELFFlags.ELFCLASS32: 
@@ -605,15 +610,16 @@ class ELF:
 
 ###################################################################################################
 def write_symbols(input_file, output_file, symbols):
-    try:        
+    try:
+        logger("reading ELF file")
         with open(input_file, 'rb') as f:
             bin = ELF(f.read())
 
         if len(symbols) < 1:
-            log("No symbols to export")
+            logger("No symbols to export")
             return
 
-        log("Exporting symbols to ELF...")
+        logger("Exporting symbols to ELF...")
         bin.strip_symbols()
 
         # raw strtab
@@ -694,7 +700,7 @@ def write_symbols(input_file, output_file, symbols):
 
             sh_idx = bin.get_section_id(st_seg)
             if not sh_idx:
-                log("ERROR: Section ID for '%s' not found" % st_seg)
+                logger("ERROR: Section ID for '%s' not found" % st_seg)
                 continue
 
             sym = {
@@ -706,37 +712,30 @@ def write_symbols(input_file, output_file, symbols):
                 "shndx" : sh_idx
             }
 
-            #log("0x%08x - 0x%08x - %s - %d/%d - %d" % (s.value, s.size, s.name, strtab_raw.index(s.name), len(strtab_raw), s.info))
+            #logger("0x%08x - 0x%08x - %s - %d/%d - %d" % (s.value, s.size, s.name, strtab_raw.index(s.name), len(strtab_raw), s.info))
             bin.append_symbol(sym)
 
         # add symbol strings
         bin.binary.extend(strtab_raw)
 
-        log("ELF saved to: %s" % output_file)
+        logger("ELF saved to: %s" % output_file)
         bin.save(output_file)
 
     except:
-        log(traceback.format_exc())
+        logger('Write ELF Error')
 
 
 def export2elf(filename, symbols):
     show_proc_info()
-    input_file_name = idc.GetInputFile()
-    input_file_type = idaapi.get_file_type_name(input_file_name)
+    input_file_name = ida_nalt.get_root_filename()
+    input_file_type = idaapi.get_file_type_name()
     print("Input file type: {}".format(input_file_type))
     if  "ELF" not in input_file_type:
-        msg("Only ELF input file supported!")
+        logger("Only ELF input file supported!")
         return 
 
     write_symbols(input_file_name, filename, symbols)
-    
-
-
-
-
-
-
-
+  
 
 
 ###################################################################################################
@@ -760,42 +759,25 @@ class Ui_ExportSymbols_Dialog(object):
     def setupUi(self, Dialog):
         self.parent=Dialog
         Dialog.setObjectName("Dialog")
-        Dialog.resize(600, 400)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(Dialog.sizePolicy().hasHeightForWidth())
-        Dialog.setSizePolicy(sizePolicy)
-        Dialog.setMinimumSize(QtCore.QSize(600, 400))
-        Dialog.setMaximumSize(QtCore.QSize(600, 400))
+        Dialog.resize(500, 600)
+        # sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        # sizePolicy.setHorizontalStretch(0)
+        # sizePolicy.setVerticalStretch(0)
+        # sizePolicy.setHeightForWidth(Dialog.sizePolicy().hasHeightForWidth())
+        # Dialog.setSizePolicy(sizePolicy)
+        # Dialog.setMinimumSize(QtCore.QSize(800, 600))
+        # Dialog.setMaximumSize(QtCore.QSize(600, 400))
         Dialog.setModal(True)
-        self.buttonBox = QtWidgets.QDialogButtonBox(Dialog)
-        self.buttonBox.setGeometry(QtCore.QRect(420, 360, 161, 32))
-        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel|QtWidgets.QDialogButtonBox.Ok)
-        self.buttonBox.setObjectName("buttonBox")
+
+        mainLayout = QtWidgets.QVBoxLayout(Dialog)
+
         self.labelSegments = QtWidgets.QLabel(Dialog)
-        self.labelSegments.setGeometry(QtCore.QRect(30, 10, 231, 16))
         self.labelSegments.setObjectName("labelSegments")
-        self.groupViews2Export = QtWidgets.QGroupBox(Dialog)
-        self.groupViews2Export.setGeometry(QtCore.QRect(380, 30, 201, 131))
-        self.groupViews2Export.setObjectName("groupViews2Export")
-        self.checkFunctions = QtWidgets.QCheckBox(self.groupViews2Export)
-        self.checkFunctions.setGeometry(QtCore.QRect(20, 20, 70, 17))
-        self.checkFunctions.setChecked(True)
-        self.checkFunctions.setObjectName("checkFunctions")
-        self.checkNames = QtWidgets.QCheckBox(self.groupViews2Export)
-        self.checkNames.setGeometry(QtCore.QRect(20, 40, 70, 17))
-        self.checkNames.setObjectName("checkNames")
-        self.checkExports = QtWidgets.QCheckBox(self.groupViews2Export)
-        self.checkExports.setGeometry(QtCore.QRect(20, 60, 70, 17))
-        self.checkExports.setObjectName("checkExports")
+        mainLayout.addWidget(self.labelSegments)
         self.segmentsWidget = QtWidgets.QTableWidget(Dialog)
-        self.segmentsWidget.setGeometry(QtCore.QRect(20, 31, 351, 281))
         self.segmentsWidget.setFrameShape(QtWidgets.QFrame.StyledPanel)
         self.segmentsWidget.setFrameShadow(QtWidgets.QFrame.Sunken)
         self.segmentsWidget.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
-        #self.segmentsWidget.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.segmentsWidget.setGridStyle(QtCore.Qt.DashLine)
         self.segmentsWidget.setWordWrap(False)
         self.segmentsWidget.setRowCount(0)
@@ -805,39 +787,84 @@ class Ui_ExportSymbols_Dialog(object):
         self.segmentsWidget.horizontalHeader().setCascadingSectionResizes(True)
         self.segmentsWidget.horizontalHeader().setSortIndicatorShown(False)
         self.segmentsWidget.horizontalHeader().setStretchLastSection(False)
+        self.segmentsWidget.horizontalHeader().setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        self.segmentsWidget.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        self.segmentsWidget.horizontalHeader().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         self.segmentsWidget.verticalHeader().setVisible(False)
         self.segmentsWidget.verticalHeader().setMinimumSectionSize(15)
         self.segmentsWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        mainLayout.addWidget(self.segmentsWidget)
+        
+        buttonLayout = QtWidgets.QHBoxLayout()
+        self.selectAllSegments = QtWidgets.QPushButton(Dialog)
+        self.selectAllSegments.setObjectName("selectAllSegments")
+        self.selectAllSegments.clicked.connect(self.select_all_segments)
+        buttonLayout.addWidget(self.selectAllSegments)
+        self.unselectAllSegments = QtWidgets.QPushButton(Dialog)
+        self.unselectAllSegments.setObjectName("unselectAllSegments")
+        self.unselectAllSegments.clicked.connect(self.unselect_all_segments)
+        buttonLayout.addWidget(self.unselectAllSegments)
+        self.selectUserSegments = QtWidgets.QPushButton(Dialog)
+        self.selectUserSegments.setObjectName("selectUserSegments")
+        self.selectUserSegments.clicked.connect(self.select_user_segments)
+        buttonLayout.addWidget(self.selectUserSegments)
+
+        mainLayout.addLayout(buttonLayout)
+
+        optionsLayout = QtWidgets.QHBoxLayout()
+
+        self.groupViews2Export = QtWidgets.QGroupBox(Dialog)
+        self.groupViews2Export.setObjectName("groupViews2Export")
+        viewsLayout = QtWidgets.QVBoxLayout(self.groupViews2Export)
+        self.checkFunctions = QtWidgets.QCheckBox(self.groupViews2Export)
+        self.checkFunctions.setChecked(True)
+        self.checkFunctions.setObjectName("checkFunctions")
+        viewsLayout.addWidget(self.checkFunctions)
+        self.checkNames = QtWidgets.QCheckBox(self.groupViews2Export)
+        self.checkNames.setChecked(True)
+        self.checkNames.setObjectName("checkNames")
+        viewsLayout.addWidget(self.checkNames)
+        self.checkExports = QtWidgets.QCheckBox(self.groupViews2Export)
+        self.checkExports.setObjectName("checkExports")
+        viewsLayout.addWidget(self.checkExports)
+
+        optionsLayout.addWidget(self.groupViews2Export)
 
         self.groupOptions = QtWidgets.QGroupBox(Dialog)
-        self.groupOptions.setGeometry(QtCore.QRect(380, 160, 201, 151))
         self.groupOptions.setObjectName("groupOptions")
+        optionsGroupLayout = QtWidgets.QVBoxLayout(self.groupOptions)
         self.checkExcludeSub = QtWidgets.QCheckBox(self.groupOptions)
-        self.checkExcludeSub.setGeometry(QtCore.QRect(10, 20, 171, 17))
-        self.checkExcludeSub.setChecked(True)
         self.checkExcludeSub.setObjectName("checkExcludeSub")
+        optionsGroupLayout.addWidget(self.checkExcludeSub)
         self.checkExcludeUnknown = QtWidgets.QCheckBox(self.groupOptions)
-        self.checkExcludeUnknown.setGeometry(QtCore.QRect(10, 40, 181, 17))
-        self.checkExcludeUnknown.setChecked(True)
         self.checkExcludeUnknown.setObjectName("checkExcludeUnknown")
+        optionsGroupLayout.addWidget(self.checkExcludeUnknown)
         self.checkExcludeFuncs = QtWidgets.QCheckBox(self.groupOptions)
-        self.checkExcludeFuncs.setGeometry(QtCore.QRect(10, 60, 181, 17))
         self.checkExcludeFuncs.setObjectName("checkExcludeFuncs")
+        optionsGroupLayout.addWidget(self.checkExcludeFuncs)
         self.checkExcludeData = QtWidgets.QCheckBox(self.groupOptions)
-        self.checkExcludeData.setGeometry(QtCore.QRect(10, 80, 181, 17))
         self.checkExcludeData.setObjectName("checkExcludeData")
+        optionsGroupLayout.addWidget(self.checkExcludeData)
+        optionsLayout.addWidget(self.groupOptions)
 
-        self.retranslateUi(Dialog)
-        #self.buttonBox.accepted.connect(Dialog.accept)
+        mainLayout.addLayout(optionsLayout)
+
+        self.buttonBox = QtWidgets.QDialogButtonBox(Dialog)
+        self.buttonBox.setOrientation(QtCore.Qt.Horizontal)
+        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok)
+        self.buttonBox.setObjectName("buttonBox")
         self.buttonBox.accepted.connect(self.accept_and_save_data)
         self.buttonBox.rejected.connect(Dialog.reject)
+        mainLayout.addWidget(self.buttonBox)
+
+        self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Export symbols"))
-        self.labelSegments.setText(_translate("Dialog", "Segments to export"))
-        self.groupViews2Export.setTitle(_translate("Dialog", "Symbols types to export"))
+        self.labelSegments.setText(_translate("Dialog", "Segments"))
+        self.groupViews2Export.setTitle(_translate("Dialog", "Symbols Types"))
         self.checkFunctions.setToolTip(_translate("Dialog", "<html><head/><body><p>Export symbols from Functions IDA view</p></body></html>"))
         self.checkFunctions.setText(_translate("Dialog", "Functions"))
         self.checkNames.setToolTip(_translate("Dialog", "<html><head/><body><p>Export symbols from Names IDA view</p></body></html>"))
@@ -849,6 +876,9 @@ class Ui_ExportSymbols_Dialog(object):
         self.segmentsWidget.setColumnWidth(0, self.segmentsWidget.width() / 2  )
         self.segmentsWidget.setColumnWidth(1, self.segmentsWidget.width() / 4  )
         self.segmentsWidget.setColumnWidth(2, self.segmentsWidget.width() / 4  )
+        self.selectAllSegments.setText(_translate("Dialog", "Select all"))
+        self.unselectAllSegments.setText(_translate("Dialog", "Unselect all"))
+        self.selectUserSegments.setText(_translate("Dialog", "Select custom"))
         # palette = self.segmentsWidget.horizontalHeader().palette()
         # palette.setColor( QtGui.QPalette.Normal, QtGui.QPalette.Window, Qt.red )
         # self.segmentsWidget.horizontalHeader().setPalette( palette )
@@ -857,6 +887,20 @@ class Ui_ExportSymbols_Dialog(object):
         self.checkExcludeUnknown.setText(_translate("Dialog", "Exclude \"unknown_*\""))
         self.checkExcludeFuncs.setText(_translate("Dialog", "Exclude functions"))
         self.checkExcludeData.setText(_translate("Dialog", "Exclude data"))
+
+    def select_all_segments(self):
+        for idx in range( self.segmentsWidget.rowCount() ):
+            self.segmentsWidget.item(idx, 0).setCheckState(QtCore.Qt.Checked)
+    
+    def unselect_all_segments(self):
+        for idx in range( self.segmentsWidget.rowCount() ):
+            self.segmentsWidget.item(idx, 0).setCheckState(QtCore.Qt.Unchecked)
+    
+    def select_user_segments(self):
+        for idx in range( self.segmentsWidget.rowCount() ):
+            sname = self.segmentsWidget.item(idx, 0).text()
+            if sname in USER_SEGMENTS:
+                self.segmentsWidget.item(idx, 0).setCheckState(QtCore.Qt.Checked)
 
     def accept_and_save_data(self):
         logger("Saving data from dialog...")
@@ -904,7 +948,7 @@ class ExportSymbolsWidget(QtWidgets.QDialog):
             logger('Error during init: %s' % str(err))
 
     def LoadData(self):
-        cnt = ida_segment.get_segm_qty()
+        cnt = idaapi.ida_segment.get_segm_qty()
         self.ui.segmentsWidget.setRowCount(cnt)
         for idx, s_ea in enumerate(idautils.Segments()):
             seg_name =idc.get_segm_name(s_ea)
@@ -914,7 +958,7 @@ class ExportSymbolsWidget(QtWidgets.QDialog):
             item0 = QtWidgets.QTableWidgetItem()
             item0.setText(seg_name)
             item0.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
-            item0.setCheckState(QtCore.Qt.Checked)
+            item0.setCheckState(False)
             self.ui.segmentsWidget.setItem(idx, 0, item0)
 
             item1 = QtWidgets.QTableWidgetItem()
@@ -972,11 +1016,8 @@ class ExportSymsPlugin(idaapi.plugin_t):
                 return
             #logger('Dialog accepted. Input type: %d' % dlg.inputType)
 
-            fileName, fileExt = QtWidgets.QFileDialog.getSaveFileName(caption="Save file", filter = "Text file (*.txt);;ELF file (*.elf)")
+            fileName, fileExt = QtWidgets.QFileDialog.getSaveFileName(caption="Save file", filter = "Text file (*.txt);;ELF file (*.*)")
             logger(fileName)
-            if "ELF" in fileName:
-                print("Output to ELF not yet supported")
-                return
 
             #ptvsd.break_into_debugger()
             self.ida_segments = dlg.get_segments()
@@ -1007,7 +1048,7 @@ class ExportSymsPlugin(idaapi.plugin_t):
                         ft.write("{:4} 0x{:04x} {:4} {:6} {:7} {:7} {:10} {}\n".format(idx, s_start, s_size, s_type, "GLOBAL", "DEFAULT", s_seg, s_name))
                         idx+=1
                     print("Finally wrote {} symbols. Some symbols could be skipped due to set options".format(idx))
-            elif ".elf" in fileExt:
+            else:
                 export2elf(fileName, self.exported_symbols)
 
         except Exception as err:
@@ -1023,12 +1064,12 @@ class ExportSymsPlugin(idaapi.plugin_t):
 
         if self.ida_views[IDAVIEW_FUNCTIONS] and not self.ida_options.get(OPTIONS_EXCLUDE_FUNCTIONS,False):
             for f in idautils.Functions():
-                fn_seg = idc.SegName(f)
+                fn_seg = idc.get_segm_name(f)
                 if fn_seg not in segs:
                     continue
                 func     = idaapi.get_func(f)
-                fn_name  = idc.GetFunctionName(f)
-                fn_start = int(func.startEA)
+                fn_name  = idc.get_func_name(f)
+                fn_start = int(func.start_ea)
                 fn_size  = int(func.size())
                 symbols[fn_name] = ("FUNC", fn_start, fn_size, fn_seg) 
             print("Found {} functions names from Functions IDA view".format(len(symbols)))
@@ -1042,7 +1083,7 @@ class ExportSymsPlugin(idaapi.plugin_t):
                 n_seg = idc.get_segm_name(n_ea)
                 if n_seg not in segs:
                     continue
-                n_flags = idc.GetFlags(n_ea)
+                n_flags = ida_bytes.get_full_flags(n_ea)
                 is_data = idc.is_data(n_flags)
                 is_code = idc.is_code(n_flags)
                 is_unknown = idc.is_unknown(n_flags) #not explored
@@ -1083,7 +1124,7 @@ class ExportSymsPlugin(idaapi.plugin_t):
                 exp_seg = idc.get_segm_name(exp_ea)
                 if exp_seg not in segs:
                     continue
-                exp_flags = idc.GetFlags(exp_ea)
+                exp_flags = ida_bytes.get_full_flags(exp_ea)
                 is_data = idc.is_data(exp_flags)
                 is_code = idc.is_code(exp_flags)
                 is_unknown = idc.is_unknown(exp_flags) #not explored

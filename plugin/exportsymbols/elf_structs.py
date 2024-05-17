@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from binstruct2 import *
-from elf_exceptions import *
+from .binstruct2 import *
+from .elf_exceptions import *
 
 class ELF_e_ident(BinStruct):
     __DEFINE_STRUCT__ = """

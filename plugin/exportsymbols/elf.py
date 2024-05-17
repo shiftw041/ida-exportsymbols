@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from elf_exceptions import *
-from elf_structs import *
+from .elf_exceptions import *
+from .elf_structs import *
 from collections import defaultdict
 import inspect
 import os, os.path
