@@ -2,7 +2,7 @@
 
 IDA plugin to export symbols from IDA database to ELF file or plaintext.
 
-Added support for IDA 7.4+ (Python 3.8), original repo only works for 7.0-7.3. Tested on IDA Pro 7.7.
+Added support for IDA 7.4+ (Python 3.8), original repo only works for 7.0-7.3. Tested on IDA Pro 7.7 and IDA Pro 8.3.
 
 Idea taken from https://github.com/danigargu/syms2elf but written from scratch.
 
