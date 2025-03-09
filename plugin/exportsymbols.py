@@ -6,9 +6,9 @@
 #
 #  Volodymyr Sydorenko <vvs [at] coders.in.ua>
 #  www: coders.in.ua
-#  git: github.com/BlackVS 
+#  git: github.com/BlackVS
 #       gitlab.com/BlackVS
-#  
+#
 #  Frnk Psycho <frnkpsycho@gmail.com>
 #  www: frnks.top
 #  git: github.com/frnkpsycho
@@ -63,22 +63,31 @@ def logger(arg):
 
 ###################################################################################################
 
-def show_proc_info():
-    info = idaapi.get_inf_structure()
-    if info.is_64bit():
-        bits = 64
-    elif info.is_32bit():
-        bits = 32
-    else:
-        bits = 16
 
-    try:
-        is_be = info.is_be()
-    except:
-        is_be = info.mf
+def show_proc_info():
+    # info = idaapi.get_inf_structure()
+    info = idaapi.inf_get_procname().lower()
+    if info == "metapc":
+        if idaapi.inf_is_64bit():
+            bits = 64
+        elif idaapi.inf_is_16bit():
+            bits = 16
+        else:
+            bits = 32
+    # if info.is_64bit():
+    #     bits = 64
+    # elif info.is_32bit():
+    #     bits = 32
+    # else:
+    #     bits = 16
+    is_be = idaapi.inf_is_be()
+    # try:
+    #     is_be = idaapi.inf_is_be()
+    # except:
+    #     is_be = info.mf
     endian = "big" if is_be else "little"
 
-    print("Processor: {}, {}-bit, {} endian".format(info.procname, bits, endian))
+    print("Processor: {}, {}-bit, {} endian".format(info, bits, endian))
 
 
 ###################################################################################################
@@ -152,7 +161,7 @@ class Elf32_Ehdr_LSB(LittleEndianStructure):
                     ("e_shnum",         c_ushort),
                     ("e_shstrndx",      c_ushort)
                 ]
- 
+
 class Elf64_Ehdr_LSB(LittleEndianStructure):
     _fields_ =  [
                     ("e_ident",         c_ubyte * 16),
@@ -240,7 +249,7 @@ class Elf32_Ehdr_MSB(BigEndianStructure):
                     ("e_shnum",         c_ushort),
                     ("e_shstrndx",      c_ushort)
                 ]
- 
+
 class Elf64_Ehdr_MSB(BigEndianStructure):
     _fields_ =  [
                     ("e_ident",         c_ubyte * 16),
@@ -362,7 +371,7 @@ class ELF:
         self.syms_l    = []
         self.e_ident   = self.binary[:15]
         self.ei_data   = unpack("<B", self.e_ident[ELFFlags.EI_DATA:ELFFlags.EI_DATA+1])[0] # LSB/MSB
-        
+
         self.__setHeaderElf()
         self.__setShdr()
         self.__setPhdr()
@@ -374,7 +383,7 @@ class ELF:
             return True
         return False
 
-    def strip_symbols(self):        
+    def strip_symbols(self):
         sh2delete = 2
         size2dec  = 0
         end_shdr  = self.ElfHeader.e_shoff + (self.sizeof_sh() * self.ElfHeader.e_shnum)
@@ -398,10 +407,10 @@ class ELF:
 
         e_shnum = self.ElfHeader.e_shnum
         e_shoff = self.ElfHeader.e_shoff
-        sz_striped = (e_shoff + (e_shnum * self.sizeof_sh()))        
+        sz_striped = (e_shoff + (e_shnum * self.sizeof_sh()))
 
         if strtab.sh_offset > symtab.sh_offset:
-            self.cut_at_offset(strtab.sh_offset, strtab.sh_size)  
+            self.cut_at_offset(strtab.sh_offset, strtab.sh_size)
             self.cut_at_offset(symtab.sh_offset, symtab.sh_size)
         else:
             self.cut_at_offset(symtab.sh_offset, symtab.sh_size)
@@ -430,9 +439,9 @@ class ELF:
         return None
 
     def getArchMode(self):
-        if self.ElfHeader.e_ident[ELFFlags.EI_CLASS] == ELFFlags.ELFCLASS32: 
+        if self.ElfHeader.e_ident[ELFFlags.EI_CLASS] == ELFFlags.ELFCLASS32:
             return 32
-        elif self.ElfHeader.e_ident[ELFFlags.EI_CLASS] == ELFFlags.ELFCLASS64: 
+        elif self.ElfHeader.e_ident[ELFFlags.EI_CLASS] == ELFFlags.ELFCLASS64:
             return 64
         else:
             logger("[Error] ELF.getArchMode() - Bad Arch size")
@@ -453,10 +462,10 @@ class ELF:
             logger("[Error] ELF.__setHeaderElf() - Bad architecture endian")
             return None
 
-        if ei_class == ELFFlags.ELFCLASS32: 
+        if ei_class == ELFFlags.ELFCLASS32:
             if   ei_data == ELFFlags.ELFDATA2LSB: self.ElfHeader = Elf32_Ehdr_LSB.from_buffer_copy(self.binary)
             elif ei_data == ELFFlags.ELFDATA2MSB: self.ElfHeader = Elf32_Ehdr_MSB.from_buffer_copy(self.binary)
-        elif ei_class == ELFFlags.ELFCLASS64: 
+        elif ei_class == ELFFlags.ELFCLASS64:
             if   ei_data == ELFFlags.ELFDATA2LSB: self.ElfHeader = Elf64_Ehdr_LSB.from_buffer_copy(self.binary)
             elif ei_data == ELFFlags.ELFDATA2MSB: self.ElfHeader = Elf64_Ehdr_MSB.from_buffer_copy(self.binary)
 
@@ -465,7 +474,7 @@ class ELF:
         off = self.ElfHeader.e_shoff
         for sh in self.shdr_l:
             self.write(off, sh)
-            off += off + sizeof(sh) 
+            off += off + sizeof(sh)
 
     """ Parse Section header """
     def __setShdr(self):
@@ -681,14 +690,14 @@ def write_symbols(input_file, output_file, symbols):
             "size"  : 0,
             "info"  : SymFlags.STB_LOCAL,
             "other" : 0,
-            "shndx" : 0 
+            "shndx" : 0
         }
         bin.append_symbol(sym)
 
-        # add symbols  
+        # add symbols
         BREAK()
         for st_name, (st_type, st_ea, st_size, st_seg) in symbols.items():
-            
+
             st_info = SymFlags.STB_GLOBAL << 4
             if st_type=="FUNC":
                 st_info|=SymFlags.STT_FUNC
@@ -696,7 +705,7 @@ def write_symbols(input_file, output_file, symbols):
                 st_info|=SymFlags.STT_OBJECT
             else:
                 st_info|=SymFlags.STT_NOTYPE
-    
+
 
             sh_idx = bin.get_section_id(st_seg)
             if not sh_idx:
@@ -732,10 +741,10 @@ def export2elf(filename, symbols):
     print("Input file type: {}".format(input_file_type))
     if  "ELF" not in input_file_type:
         logger("Only ELF input file supported!")
-        return 
+        return
 
     write_symbols(input_file_name, filename, symbols)
-  
+
 
 
 ###################################################################################################
@@ -794,17 +803,20 @@ class Ui_ExportSymbols_Dialog(object):
         self.segmentsWidget.verticalHeader().setMinimumSectionSize(15)
         self.segmentsWidget.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         mainLayout.addWidget(self.segmentsWidget)
-        
+
         buttonLayout = QtWidgets.QHBoxLayout()
         self.selectAllSegments = QtWidgets.QPushButton(Dialog)
+        self.selectAllSegments.setText("Select All")
         self.selectAllSegments.setObjectName("selectAllSegments")
         self.selectAllSegments.clicked.connect(self.select_all_segments)
         buttonLayout.addWidget(self.selectAllSegments)
         self.unselectAllSegments = QtWidgets.QPushButton(Dialog)
+        self.unselectAllSegments.setText("Unselect All")
         self.unselectAllSegments.setObjectName("unselectAllSegments")
         self.unselectAllSegments.clicked.connect(self.unselect_all_segments)
         buttonLayout.addWidget(self.unselectAllSegments)
         self.selectUserSegments = QtWidgets.QPushButton(Dialog)
+        self.selectUserSegments.setText("Costum Select")
         self.selectUserSegments.setObjectName("selectUserSegments")
         self.selectUserSegments.clicked.connect(self.select_user_segments)
         buttonLayout.addWidget(self.selectUserSegments)
@@ -891,11 +903,11 @@ class Ui_ExportSymbols_Dialog(object):
     def select_all_segments(self):
         for idx in range( self.segmentsWidget.rowCount() ):
             self.segmentsWidget.item(idx, 0).setCheckState(QtCore.Qt.Checked)
-    
+
     def unselect_all_segments(self):
         for idx in range( self.segmentsWidget.rowCount() ):
             self.segmentsWidget.item(idx, 0).setCheckState(QtCore.Qt.Unchecked)
-    
+
     def select_user_segments(self):
         for idx in range( self.segmentsWidget.rowCount() ):
             sname = self.segmentsWidget.item(idx, 0).text()
@@ -907,7 +919,7 @@ class Ui_ExportSymbols_Dialog(object):
 
         #print( self.segmentsWidget.item(0, 0).text() )
         self.data_segments = []
-        #ptvsd.break_into_debugger()        
+        #ptvsd.break_into_debugger()
         for idx in range( self.segmentsWidget.rowCount() ):
             if self.segmentsWidget.item(idx, 0).checkState()!=QtCore.Qt.Checked:
                 continue
@@ -954,7 +966,7 @@ class ExportSymbolsWidget(QtWidgets.QDialog):
             seg_name =idc.get_segm_name(s_ea)
             seg_start=idc.get_segm_start(s_ea)
             seg_end  =idc.get_segm_end(s_ea)-1
-             
+
             item0 = QtWidgets.QTableWidgetItem()
             item0.setText(seg_name)
             item0.setFlags(QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEnabled)
@@ -970,7 +982,7 @@ class ExportSymbolsWidget(QtWidgets.QDialog):
             self.ui.segmentsWidget.setItem(idx, 2, item2)
 
         self.ui.segmentsWidget.resizeRowsToContents()
-        
+
 
     def get_segments(self):
         return self.ui.data_segments
@@ -993,7 +1005,7 @@ class ExportSymsPlugin(idaapi.plugin_t):
     ida_segments = None
     ida_views = None
     ida_options = dict()
-    
+
     exported_symbols = None
 
     def init(self):
@@ -1023,7 +1035,7 @@ class ExportSymsPlugin(idaapi.plugin_t):
             self.ida_segments = dlg.get_segments()
             self.ida_views    = dlg.get_views()
             self.ida_options  = dlg.get_options()
-            
+
             self.exported_symbols = self.get_symbols_from_ida()
 
             #ptvsd.break_into_debugger()
@@ -1071,7 +1083,7 @@ class ExportSymsPlugin(idaapi.plugin_t):
                 fn_name  = idc.get_func_name(f)
                 fn_start = int(func.start_ea)
                 fn_size  = int(func.size())
-                symbols[fn_name] = ("FUNC", fn_start, fn_size, fn_seg) 
+                symbols[fn_name] = ("FUNC", fn_start, fn_size, fn_seg)
             print("Found {} functions names from Functions IDA view".format(len(symbols)))
 
         #ptvsd.break_into_debugger()
@@ -1095,19 +1107,19 @@ class ExportSymsPlugin(idaapi.plugin_t):
                     continue
 
                 if is_unknown: #write as NOTYPE
-                    symbols[n_name] = ("NOTYPE", n_ea, n_size, n_seg) 
+                    symbols[n_name] = ("NOTYPE", n_ea, n_size, n_seg)
                     cnt_unk+=1
 
                 if is_data: #write as OBJECT
-                    symbols[n_name] = ("OBJECT", n_ea, n_size, n_seg) 
+                    symbols[n_name] = ("OBJECT", n_ea, n_size, n_seg)
                     cnt_data+=1
 
                 if is_code: #write as FUNC, but they couldbe inside func
                     if is_head: #function name, some of them not listed in Functions View
-                        symbols[n_name] = ("FUNC", n_ea, n_size, n_seg) 
+                        symbols[n_name] = ("FUNC", n_ea, n_size, n_seg)
                     else:
                         #ptvsd.break_into_debugger()
-                        symbols[n_name] = ("FUNC", n_ea, n_size, n_seg) 
+                        symbols[n_name] = ("FUNC", n_ea, n_size, n_seg)
                     cnt_code+=1
 
             print("Found new {} unexplored data names from Names IDA view".format(cnt_unk))
@@ -1136,11 +1148,11 @@ class ExportSymsPlugin(idaapi.plugin_t):
                     continue
 
                 if is_unknown: #write as NOTYPE
-                    symbols[exp_name] = ("NOTYPE", exp_ea, exp_size, exp_seg) 
+                    symbols[exp_name] = ("NOTYPE", exp_ea, exp_size, exp_seg)
                     cnt_unk+=1
 
                 if is_data: #write as OBJECT
-                    symbols[exp_name] = ("OBJECT", exp_ea, exp_size, exp_seg) 
+                    symbols[exp_name] = ("OBJECT", exp_ea, exp_size, exp_seg)
                     cnt_data+=1
 
                 if is_code: #write as FUNC, but they couldbe inside func
@@ -1157,4 +1169,3 @@ class ExportSymsPlugin(idaapi.plugin_t):
 
 def PLUGIN_ENTRY():
     return ExportSymsPlugin()
-
