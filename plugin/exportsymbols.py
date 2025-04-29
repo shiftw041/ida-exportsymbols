@@ -621,8 +621,12 @@ class ELF:
 def write_symbols(input_file, output_file, symbols):
     try:
         logger("reading ELF file")
-        with open(input_file, 'rb') as f:
-            bin = ELF(f.read())
+        try:
+            with open(input_file, 'rb') as f:
+                bin = ELF(f.read())
+        except:
+            logger("Error while open ELF file")
+            return
 
         if len(symbols) < 1:
             logger("No symbols to export")
@@ -731,14 +735,15 @@ def write_symbols(input_file, output_file, symbols):
         bin.save(output_file)
 
     except:
-        logger('Write ELF Error')
+        logger(traceback.format_exc())
 
 
 def export2elf(filename, symbols):
     show_proc_info()
-    input_file_name = ida_nalt.get_root_filename()
+    input_file_name = idaapi.get_input_file_path()
+    logger(f'Process original file: {input_file_name}')
     input_file_type = idaapi.get_file_type_name()
-    print("Input file type: {}".format(input_file_type))
+    logger("Input file type: {}".format(input_file_type))
     if  "ELF" not in input_file_type:
         logger("Only ELF input file supported!")
         return
@@ -885,9 +890,9 @@ class Ui_ExportSymbols_Dialog(object):
         self.checkExports.setText(_translate("Dialog", "Exports"))
         self.segmentsWidget.setSortingEnabled(False)
         self.segmentsWidget.setHorizontalHeaderLabels( ["Name","Start","End"])
-        self.segmentsWidget.setColumnWidth(0, self.segmentsWidget.width() / 2  )
-        self.segmentsWidget.setColumnWidth(1, self.segmentsWidget.width() / 4  )
-        self.segmentsWidget.setColumnWidth(2, self.segmentsWidget.width() / 4  )
+        self.segmentsWidget.setColumnWidth(0, int(self.segmentsWidget.width() / 2) )
+        self.segmentsWidget.setColumnWidth(1, int(self.segmentsWidget.width() / 4)  )
+        self.segmentsWidget.setColumnWidth(2, int(self.segmentsWidget.width() / 4)  )
         self.selectAllSegments.setText(_translate("Dialog", "Select all"))
         self.unselectAllSegments.setText(_translate("Dialog", "Unselect all"))
         self.selectUserSegments.setText(_translate("Dialog", "Select custom"))
