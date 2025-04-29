@@ -22,7 +22,7 @@ Copy all files from plugin durectory to IDA plugin directory.
     USER_SEGMENTS = ['.text', '.data', '.bss', '.rodata']
     ```
 
-- Change export symbols types and options as you want. 
+- Change export symbols types and options as you want. Note that if you choose to export an ELF file, you must specify a file extension that is not .txt.
 
 - In file dialog, You can save file as plaintext or a copy of input ELF file with IDA symbols imported by selecting file type.
 
